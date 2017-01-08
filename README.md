@@ -140,3 +140,15 @@ func main(){
 
 }
 ```
+## Running the program
+So now, we can display a message in english by running the program as:
+```
+> go run greeter.go english
+Hello Universe
+```
+Or to do it in Chinese:
+```
+> go run greeter.go chinese
+你好宇宙
+```
+The capability of the program is extended by the plugin allowing it to display a greeting message in different language without the need to recompile the program.
