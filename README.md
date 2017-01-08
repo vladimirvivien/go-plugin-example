@@ -122,7 +122,7 @@ func main(){
 ```
 
 #### Assert and use plugin value
-The last step is to assert that the loaded symbol is of a type we can use.  In this example, we assert symbol `symGreeter` to be of interface type `Greeter` with `symGreeter.(Greeter)`.  Since the exported symbol from the plugin module `./eng/eng.so` is a variable with method `Greet` attached, the assertion is true and the value is assigned to `greeter`.  Lastly, we invoke the method from the plugin module with `greeter.Greet()`.
+Once we have the symbol loaded, we still have one additional step before we can use it.  We must use type assertion to validate that the symbol is of an expected type and assign its value to a variable of that type (well, the assignment step is optional).  In this example, we assert symbol `symGreeter` to be of interface type `Greeter` with `symGreeter.(Greeter)`.  Since the exported symbol from the plugin module `./eng/eng.so` is a variable with method `Greet` attached, the assertion is true and the value is assigned to variable `greeter`.  Lastly, we invoke the method from the plugin module with `greeter.Greet()`.
 ```
 func main(){
 ...
