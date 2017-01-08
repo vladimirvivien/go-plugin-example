@@ -36,7 +36,7 @@ func (g greeting) Greet() {
 var Greeter greeting
 ```
 Notice a few things about the plugin module:
-- Plugin package is basically a regular Go package
+- Pluggable packages are basically regular Go packages
 - The code in the package must `import "C"` as a requirement
 - The exported variables and functions can be of any type (no documented restrictions I found)
 
@@ -53,18 +53,26 @@ go build -buildmode=plugin .
 The compilation step will create `./eng/eng.so` and `./chi/chi.so` shared library files respectively.
 
 ### Using the Plugins
-Once the plugin packages are compiled, they can be loaded dynamically using the built-in `plugin` package.  Let us examine file [./greeter.go](./greeter.go) to see how that is done.
+Once the plugin packages are compiled, they can be loaded dynamically using the built-in `plugin` package.  Let us examine file [./greeter.go](./greeter.go) to see how that is done. Loading and using a pluggable shared library is done in several steps.
+
+##### Import the built-in plugin package
+
 ```
 import (
-	"fmt"
-	"os"
+	...
 	"plugin"
 )
-
+```
+##### Define/select type for imported elements (optional)
+Remember, the exported elements, from the pluggable package, can be of any type.  For clarity purpose, in this example we defined interface type `Greeter` as a type that will be asserted against the exported element from the plugin. 
+```
 type Greeter interface {
 	Greet()
 }
-
+```
+##### Determine the .so file
+The `.so` file must be in a location accessible from you program in order to open it.  In this example, the file .so file name is determined based on command-line argument and assigned to variable `mod`.
+```
 func main() {
 	// determine module to load
 	lang := "english"
@@ -81,7 +89,14 @@ func main() {
 		fmt.Println("don't speak that language")
 		os.Exit(1)
 	}
+...
+```
+##### Open the plugin package
+Using the standard library's `plugin` package, we can now open the plugin module.  That step creates a `*Plugin` variable as shown below.
 
+```
+func main(){
+...
 	// load module
 	// 1. open the so file to load the symbols
 	plug, err := plugin.Open(mod)
@@ -89,7 +104,13 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-
+...
+```
+##### Lookup Symbol
+Next, we use the `*Plugin` to search for symbols that matches the name of the exported elements from the plugin module.  In our example plugin ([./eng/greeter.go](./eng/greeter.go), see earlier), we exported a variable called `Greeter`.  Therefore, we use `plug.Lookup("Greeter")` to locate that symbol.  The loaded symbol is then assigned to variable `symGreeter`.
+```
+func main(){
+...
 	// 2. look up a symbol (an exported function or variable)
 	// in this case, variable Greeter
 	symGreeter, err := plug.Lookup("Greeter")
@@ -97,7 +118,14 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+...
+```
 
+##### Assert and use plugin value
+The last step is to assert that the loaded symbol is of a type we can use.  In this example, we assert symbol `symGreeter` to be of interface type `Greeter` with `symGreeter.(Greeter)`.  Since the exported symbol from the plugin module `./eng/eng.so` is a variable with method `Greet` attached, the assertion is true and the value is assigned to `greeter`.  Lastly, we invoke the method from the plugin module with `greeter.Greet()`.
+```
+func main(){
+...
 	// 3. Assert that loaded symbol is of a desired type
 	// in this case interface type Greeter (defined above)
 	var greeter Greeter
