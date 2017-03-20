@@ -1,15 +1,16 @@
 # Go Plugin Example
 
-The code in this repository shows how to use the new `plugin` package in Go 1.8 (see https://tip.golang.org/pkg/plugin/).  A Go plugin is package compiled with the `-buildmode=plugin` which creates a shared object (`.so`) library file instead of the standar object (`.a`) library file.  As you will see here, using the standar library's `plugin` package, Go can dynamically load the shared object file at runtime to access exported elements such as functions an variables.
+The code in this repository shows how to use the new `plugin` package in Go 1.8 (see https://tip.golang.org/pkg/plugin/).  A Go plugin is package compiled with the `-buildmode=plugin` which creates a shared object (`.so`) library file instead of the standar archive (`.a`) library file.  As you will see here, using the standar library's `plugin` package, Go can dynamically load the shared object file at runtime to access exported elements such as functions an variables.
 
 ## Requirements
-- Go 1.8 
-- Go 1.8 (beta 2) only supports plugin on Linux.  Attempt to compile plugins on OSX you will get you a  `-buildmode=plugin not supported on darwin/amd64` error.  It's early, things may change by the time GA comes out.
+The plugin system requires Go version 1.8.  At this time, it is only supports plugin on Linux.  Attempt 
+to compile plugins on OSX, for instance, will result in  `-buildmode=plugin not supported on darwin/amd64` error.
 
 ## A Pluggable Greeting System
-To demo the plugin system, the example in this repository implements a simple greeting system.  Each plugin package (directories `./eng` and `./chi`) implements code that prints a greeting meesage in a different lanaguage.  File `greeter.go` uses the new Go `plugin` package to load the pluggable module and displays the proper message based on passed command-line parameters.
+The demo in this repository implements a simple greeting system.  Each plugin package (directories `./eng` and `./chi`) implements code that prints a greeting meesage in a different lanaguage.  File `./greeter.go` uses the new Go `plugin` package to load the pluggable modules and displays the proper message using passed command-line parameters.
 
-So when the program is executed, it prints a greeting in English or Chinese depending on the parameter passed as shown below.
+For instance, when the program is executed it prints a greeting in English or Chinese 
+using the passed parameter to select the plugin to load for the appropriate language.
 ```
 > go run greeter.go english
 Hello Universe
@@ -19,23 +20,18 @@ Or to do it in Chinese:
 > go run greeter.go chinese
 你好宇宙
 ```
-The capability of the program is extended by the plugin allowing it to display a greeting message in different language without the need to recompile the program.
+As you can see, the capability of the driver program is dynamically expanded by the plugins allowing it to display a greeting message in different language without the need to recompile the program.
 
 Let us see how this is done.
 
 
-### The Plugin
-To create a pluggable package is simple.  There are two requirements (so far):
-- The package must be identified as `main`
-- The package must `import "C"`
-
-Let's examine the plugin in package directory `./eng`.  This plugin is responsible for displaying a message in english.  
+## The Plugin
+To create a pluggable package is simple.  Simply create a regular Go package designated as `main`. Use the capitalization rule to indicate functions and variables that are exported as part of the plugin.  This is shown below in file  `./eng/greeter.go`.  This plugin is responsible for displaying a message in `English`.  
 
 File [./eng/greeter.go](./eng/greeter.go)
-```
-package main
 
-import "C" // required
+```go
+package main
 
 import "fmt"
 
@@ -45,28 +41,28 @@ func (g greeting) Greet() {
 	fmt.Println("Hello Universe")
 }
 
-// exported
+// this is exported
 var Greeter greeting
 ```
 Notice a few things about the pluggable module:
+
 - Pluggable packages are basically regular Go packages
-- The package code must `import "C"` as a requirement
+- The package must be marked `main`
 - The exported variables and functions can be of any type (I found no documented restrictions)
 
-In the previous code, we are exporting variable `Greeter` of type `greeting`.  As we will see later, the code that will consume this exported value must have a compatible type for assertion.  One way this can be handled is to have an interface with the same method set. (The plugin package in directory `./chi` is exactly the same code except the message is in Chinese.)
+The previous code exports variable `Greeter` of type `greeting`.  As we will see later, the code that will consume this exported value must have a compatible type for assertion.  One way this can be handled is to have an interface with the same method set. (The plugin package in directory `./chi` is exactly the same code except the message is in Chinese.)
 
 ### Compiling the Plugins
 The plugin package is compiled using the normal Go toolchain.  The only requirement is to use the `buildmode=plugin` compilation flag as shown below:
+
 ```
-cd ./eng
-go build -buildmode=plugin .
-cd ../chi
-go build -buildmode=plugin .
+go build -buildmode=plugin -o eng/eng.so eng/greeter.go
+go build -buildmode=plugin -o chi/chi.so chi/greeter.go
 ```
-The compilation step will create `./eng/eng.so` and `./chi/chi.so` shared library files respectively.
+The compilation step will create `./eng/eng.so` and `./chi/chi.so` plugin files respectively.
 
 ### Using the Plugins
-Once the plugin modules are available, they can be loaded dynamically using the standard library's `plugin` package.  Let us examine file [./greeter.go](./greeter.go) to see how that is done. Loading and using a shared object library is done in several steps as outline below.
+Once the plugin modules are available, they can be loaded dynamically using the Go standard library's `plugin` package.  Let us examine file [./greeter.go](./greeter.go), the driver program that loads and uses the plugin at runtime. Loading and using a shared object library is done in several steps as outlined below:
 
 #### 1. Import package plugin
 ```
@@ -76,14 +72,14 @@ import (
 )
 ```
 #### 2. Define/select type for imported elements (optional)
-The exported elements, from the pluggable package, can be of any type.  The consumer code must have a compatible type defined (or pre-defined in case of built-in types) for assertion. In this example we define interface type `Greeter` as a type that will be asserted against the exported variable from the shared module. 
+The exported elements, from the pluggable package, can be of any type.  The consumer code, loading the plugin, must have a compatible type defined (or pre-defined in case of built-in types) for assertion. In this example we define interface type `Greeter` as a type that will be asserted against the exported variable from the plugin module. 
 ```
 type Greeter interface {
 	Greet()
 }
 ```
 #### 3. Determine the .so file to load
-The `.so` file must be in a location accessible from you program in order to open it.  In this example, the file .so files are located in directories `./eng` and `./chi`.  and are selected based on a command-line argument.  The selected name is then assigned to variable `mod`.
+The `.so` file must be in a location accessible from you program in order to open it.  In this example, the file .so files are located in directories `./eng` and `./chi`.  and are selected based on the value of a command-line argument.  The selected name is then assigned to variable `mod`.
 ```
 func main() {
 	// determine module to load
@@ -104,7 +100,7 @@ func main() {
 ...
 ```
 #### 4. Open the plugin package
-Using the standard library's `plugin` package, we can now `open` the plugin module.  That step creates a value of type `*plugin.Plugin` assigned to variable `plug` as shown below.  It is used later to manage access to the plugin's exported elements.
+Using the Go standard library's `plugin` package, we can now `open` the plugin module.  That step creates a value of type `*plugin.Plugin`.  It is used later to manage access to the plugin's exported elements.
 
 ```
 func main(){
@@ -119,7 +115,7 @@ func main(){
 ...
 ```
 #### 6. Lookup a Symbol
-Next, we use the `*plugin.Plugin` to search for symbols that matches the name of the exported elements from the plugin module.  In our example plugin ([./eng/greeter.go](./eng/greeter.go), see earlier), we exported a variable called `Greeter`.  Therefore, we use `plug.Lookup("Greeter")` to locate that symbol.  The loaded symbol is then assigned to variable `symGreeter` (of type `package.Symbol`).
+Next, we use the `*plugin.Plugin` value to search for symbols that matches the name of the exported elements from the plugin module.  In our example plugin ([./eng/greeter.go](./eng/greeter.go), seen earlier), we exported a variable called `Greeter`.  Therefore, we use `plug.Lookup("Greeter")` to locate that symbol.  The loaded symbol is then assigned to variable `symGreeter` (of type `package.Symbol`).
 ```
 func main(){
 ...
@@ -134,7 +130,7 @@ func main(){
 ```
 
 #### 7. Assert the symbol's type and use it
-Once we have the symbol loaded, we still have one additional step before we can use it.  We must use type assertion to validate that the symbol is of an expected type and assign its value to a variable of that type (well, the assignment step is optional).  In this example, we assert symbol `symGreeter` to be of interface type `Greeter` with `symGreeter.(Greeter)`.  Since the exported symbol from the plugin module `./eng/eng.so` is a variable with method `Greet` attached, the assertion is true and the value is assigned to variable `greeter`.  Lastly, we invoke the method from the plugin module with `greeter.Greet()`.
+Once we have the symbol loaded, we still have one additional step before we can use it.  We must use type assertion to validate that the symbol is of an expected type and (optionally) assign its value to a variable of that type.  In this example, we assert symbol `symGreeter` to be of interface type `Greeter` with `symGreeter.(Greeter)`.  Since the exported symbol from the plugin module `./eng/eng.so` is a variable with method `Greet` attached, the assertion is true and the value is assigned to variable `greeter`.  Lastly, we invoke the method from the plugin module with `greeter.Greet()`.
 ```
 func main(){
 ...
