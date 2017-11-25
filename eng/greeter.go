@@ -1,7 +1,5 @@
 package main
 
-import "C" // required
-
 import "fmt"
 
 type greeting string
