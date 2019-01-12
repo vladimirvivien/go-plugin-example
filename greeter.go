@@ -22,6 +22,8 @@ func main() {
 		mod = "./eng/eng.so"
 	case "chinese":
 		mod = "./chi/chi.so"
+ 	case "swedish":
+	        mod = "./swe/swe.so"
 	default:
 		fmt.Println("don't speak that language")
 		os.Exit(1)
